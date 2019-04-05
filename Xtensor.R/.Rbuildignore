@@ -1,0 +1,7 @@
+.travis
+.appveyor
+^.*\.Rproj$
+^\.Rproj\.user$
+
+# Travis generated files
+miniconda.sh

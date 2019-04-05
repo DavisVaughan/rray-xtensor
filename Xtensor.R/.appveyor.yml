@@ -1,0 +1,49 @@
+build: false
+
+os: Visual Studio 2015
+
+platform:
+  - x64
+
+environment:
+  matrix:
+    - MINICONDA: C:\xtensor-conda
+
+init:
+  - "ECHO %MINICONDA%"
+  - C:\"Program Files (x86)"\"Microsoft Visual Studio 14.0"\VC\vcvarsall.bat %PLATFORM%
+  - ps: if($env:Platform -eq "x64"){Start-FileDownload 'http://repo.continuum.io/miniconda/Miniconda3-latest-Windows-x86_64.exe' C:\Miniconda.exe; echo "Done"}
+  - ps: if($env:Platform -eq "x86"){Start-FileDownload 'http://repo.continuum.io/miniconda/Miniconda3-latest-Windows-x86.exe' C:\Miniconda.exe; echo "Done"}
+  - cmd: C:\Miniconda.exe /S /D=C:\xtensor-conda
+  - "set PATH=%MINICONDA%;%MINICONDA%\\Scripts;%MINICONDA%\\Library\\bin;%PATH%"
+
+install:
+  # CXX14 unnecessary with MSVC
+  # Also cannot be set because R uses its compile-time settings.
+  - ps: sed -i 's|CXX_STD = CXX14||' src/Makevars.win
+  - conda config --set always_yes yes --set changeps1 no
+  # - conda update -q conda
+  # Install R and dependencies
+  - conda install r r-rcpp r-base r-devtools r-testthat -c conda-forge
+  - conda install m2w64-gcc m2w64-make m2w64-toolchain m2-libbz2 posix
+  # Install miktex
+  - if not exist c:\miktex\texmfs\install\miktex\bin\pdflatex.exe appveyor DownloadFile http://miktex.org/download/ctan/systems/win32/miktex/setup/windows-x86/miktex-portable.exe
+  - if not exist c:\miktex\texmfs\install\miktex\bin\pdflatex.exe 7z x miktex-portable.exe -oC:\miktex >NUL
+  - set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin"
+  # Enable installing miktex packages on the fly
+  - initexmf --set-config-value [MPM]AutoInstall=1
+  # Full build on x64 with msys64
+  - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+  - set R_HOME=%MINICONDA%\\Lib\\R
+  - set MINGW_PATH=%MINICONDA%\\Library\\mingw-w64\\bin
+  - "set PATH=%PATH%;%MINGW_PATH%;%MINICONDA%\\Lib\\R\\library\\RInside\\libs\\x64;%MINICONDA%\\Lib\\R\\bin\\x64"
+  - appveyor DownloadFile https://cran.r-project.org/bin/windows/Rtools/Rtools34.exe
+  - Rtools34.exe /VERYSILENT -NoNewWindow -Wait
+  # Build
+  - R CMD build .
+
+build_script:
+  - R CMD check --as-cran .\xtensor_*.tar.gz
+  - R CMD INSTALL xtensor_*.tar.gz
+  #- cd ..\test\
+  #- Rscript unittest.R
